@@ -1,0 +1,11 @@
+.git
+node_modules
+dist
+.env
+.env.*
+*.pdf
+.aws
+.codex
+.agents
+backups
+*.log

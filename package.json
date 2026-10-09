@@ -1,0 +1,42 @@
+{
+  "name": "aulanexo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"tsx watch src/server.ts\" \"npm run css -- --watch\"",
+    "css": "tailwindcss -i src/styles/app.css -o src/public/app.css",
+    "build": "npm run css -- --minify && tsc",
+    "start": "node dist/server.js",
+    "test": "tsx --test tests/*.test.ts",
+    "check": "tsc --noEmit",
+    "bootstrap": "tsx scripts/bootstrap.ts",
+    "test:integration": "RUN_INTEGRATION=1 tsx --test tests/integration.test.ts"
+  },
+  "dependencies": {
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "mysql2": "^3.14.0",
+    "nodemailer": "^10.0.16",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^7.0.0",
+    "@types/supertest": "^6.0.0",
+    "concurrently": "^9.2.0",
+    "supertest": "^7.1.0",
+    "tailwindcss": "~3.4.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "postcss-selector-parser": "^7.1.6"
+  }
+}

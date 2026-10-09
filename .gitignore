@@ -1,0 +1,16 @@
+node_modules/
+dist/
+src/public/app.css
+.env
+.env.*
+!.env.example
+*.pdf
+coverage/
+
+.aws/
+.codex/
+.agents/
+backups/
+*.log
+playwright-report/
+test-results/

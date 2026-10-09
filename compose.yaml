@@ -1,0 +1,121 @@
+name: aulanexo
+services:
+  app:
+    build:
+      context: .
+      target: development
+    init: true
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      APP_URL: ${APP_URL:-http://localhost:3100}
+      OWNER_EMAIL: ${OWNER_EMAIL:-}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+      OWNER_NAME: ${OWNER_NAME:-Administrador de AulaNexo}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-aulanexo}
+      DB_USER: ${MYSQL_USER:-aulanexo}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD in .env}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      MAIL_FROM: AulaNexo <no-reply@aulanexo.test>
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aulanexo}
+      MYSQL_USER: ${MYSQL_USER:-aulanexo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD in .env}
+      TZ: America/Argentina/Buenos_Aires
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT 1' >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${MAIL_UI_PORT:-8025}:8025"
+  backup:
+    image: mysql:8.4
+    profiles: [backup]
+    entrypoint: ["sh", "/scripts/backup.sh"]
+    environment:
+      DB_NAME: ${MYSQL_DATABASE:-aulanexo}
+      DB_USER: ${MYSQL_USER:-aulanexo}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD in .env}
+    volumes:
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+      - backups:/backups
+    depends_on:
+      app:
+        condition: service_healthy
+  test-db:
+    image: mysql:8.4
+    profiles: [test]
+    environment:
+      MYSQL_DATABASE: aulanexo_test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: local-test-only
+      MYSQL_ROOT_PASSWORD: local-test-root-only
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT 1' >/dev/null 2>&1",
+        ]
+      interval: 3s
+      retries: 40
+      start_period: 20s
+  tests:
+    build:
+      context: .
+      target: development
+    profiles: [test]
+    command: ["npm", "test"]
+    environment:
+      RUN_INTEGRATION: "1"
+      DB_HOST: test-db
+      DB_NAME: aulanexo_test
+      DB_USER: test
+      DB_PASSWORD: local-test-only
+      APP_URL: http://localhost:3100
+    depends_on:
+      test-db:
+        condition: service_healthy
+volumes:
+  backups:
+  mysql_data:
+  node_modules:
