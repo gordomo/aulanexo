@@ -1,8 +1,48 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><%= title %> · AulaNexo</title><link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · AulaNexo</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
 <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
 <a class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-4" href="#main">Ir al contenido</a>
-<header class="border-b border-slate-200 bg-white print:hidden"><div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6"><a href="<%= user ? (user.superAdmin ? '/platform' : '/institutes') : '/' %>" class="flex items-center gap-3 font-semibold"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white" aria-hidden="true">AN</span><span class="text-xl">AulaNexo</span></a><div class="flex flex-wrap items-center gap-4 text-sm"><% if(user){ %><span class="text-slate-600"><%= user.name %></span><a href="/institutes" class="font-medium text-indigo-700">Mis institutos</a><% if(user.superAdmin){ %><a href="/platform" class="font-medium text-indigo-700">Plataforma</a><a href="/platform/help" class="font-medium text-indigo-700">Ayuda de plataforma</a><% } %><form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-100">Cerrar sesión</button></form><% }else{ %><a href="/request-institute" class="font-medium text-indigo-700">Solicitar acceso</a><a href="/login" class="font-medium text-indigo-700">Iniciar sesión</a><a href="/forgot" class="text-slate-600">Recuperar contraseña</a><% } %></div></div></header>
-<% if(base && membership){ %><nav aria-label="Navegación del instituto" class="border-b border-slate-200 bg-white print:hidden"><div class="mx-auto flex max-w-7xl flex-wrap gap-x-5 gap-y-3 px-4 py-3 text-sm sm:px-6"><a class="font-semibold text-indigo-700" href="<%= base %>"><%= membership.institute_name %></a><a href="<%= base %>/commissions">Cursos</a><a href="<%= base %>/attendance">Asistencias</a><% if(membership.role!=='teacher'){ %><a href="<%= base %>/payments">Pagos</a><% } %><a href="<%= base %>/notifications">Notificaciones</a><% if(membership.role==='admin'){ %><a href="<%= base %>/people/student">Alumnos</a><a href="<%= base %>/people/teacher">Profesores</a><a href="<%= base %>/users">Usuarios</a><a href="<%= base %>/settings">Configuración</a><a href="<%= base %>/subscription">Cobros de AulaNexo</a><% } %><% if(membership.role==='student'){ %><a href="<%= base %>/profile">Mis datos</a><% } %><a href="<%= base %>/help">Ayuda</a></div></nav><% } %>
+<header class="border-b border-slate-200 bg-white print:hidden">
+  <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
+    <a href="<%= base || (user ? (user.superAdmin ? '/platform' : '/institutes') : '/') %>" class="flex min-w-0 items-center gap-3 font-semibold">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white" aria-hidden="true">AN</span>
+      <span><span class="block text-xl">AulaNexo</span><% if(membership){ %><span class="block max-w-48 truncate text-xs font-normal text-slate-500"><%= membership.institute_name %></span><% } %></span>
+    </a>
+    <% if(user){ %>
+    <details class="relative ml-auto">
+      <summary class="cursor-pointer rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><span class="inline-block max-w-40 truncate align-middle font-semibold"><%= user.name %></span><% if(membership){ %><span class="ml-2 hidden text-xs text-slate-500 sm:inline"><%= roleLabel(membership.role) %></span><% } %></summary>
+      <div class="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+        <a href="/institutes" class="block rounded-lg px-3 py-3 text-sm hover:bg-slate-50">Mis institutos</a>
+        <% if(user.superAdmin){ %><a href="/platform" class="block rounded-lg px-3 py-3 text-sm hover:bg-slate-50">Plataforma</a><a href="/platform/help" class="block rounded-lg px-3 py-3 text-sm hover:bg-slate-50">Ayuda de plataforma</a><% } %>
+        <form method="post" action="/logout" class="mt-1 border-t border-slate-100 pt-1"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="w-full rounded-lg px-3 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">Cerrar sesión</button></form>
+      </div>
+    </details>
+    <% }else{ %>
+    <div class="flex flex-wrap items-center gap-4 text-sm"><a href="/request-institute" class="font-medium text-indigo-700">Solicitar acceso</a><a href="/login" class="font-medium text-indigo-700">Iniciar sesión</a><a href="/forgot" class="text-slate-600">Recuperar contraseña</a></div>
+    <% } %>
+  </div>
+</header>
+<% if(base && membership){ %>
+<nav aria-label="Navegación del instituto" class="border-b border-slate-200 bg-white print:hidden">
+  <div class="mx-auto flex max-w-7xl flex-wrap items-start gap-x-2 gap-y-2 px-4 py-2 text-sm sm:px-6">
+    <a class="rounded-lg px-3 py-2 font-medium <%= currentPath===base || currentPath===base+'/' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' %>" href="<%= base %>" <%- currentPath===base || currentPath===base+'/' ? 'aria-current="page"' : '' %>>Inicio</a>
+    <% if(membership.role==='admin'){ %>
+    <details class="relative"><summary class="cursor-pointer rounded-lg px-3 py-2 font-medium text-slate-600 hover:bg-slate-50">Académico</summary><div class="z-20 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg md:absolute md:left-0 md:mt-2">
+      <% for(const entry of [{label:'Cursos y niveles',path:'/courses'},{label:'Comisiones e inscripciones',path:'/commissions'},{label:'Alumnos',path:'/people/student'},{label:'Profesores',path:'/people/teacher'},{label:'Asistencias',path:'/attendance'}]){ %><a href="<%= base+entry.path %>" class="block rounded-lg px-3 py-3 text-sm <%= currentPath.startsWith(base+entry.path) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50' %>"><%= entry.label %></a><% } %>
+    </div></details>
+    <% }else{ %><a class="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-50" href="<%= base %>/commissions">Mis cursos</a><a class="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-50" href="<%= base %>/attendance">Asistencias</a><% } %>
+    <% if(membership.role!=='teacher'){ %><a href="<%= base %>/payments" class="rounded-lg px-3 py-2 font-medium <%= currentPath.startsWith(base+'/payments') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' %>">Pagos</a><% } %>
+    <% if(membership.role==='admin'){ %><a href="<%= base %>/users" class="rounded-lg px-3 py-2 font-medium <%= currentPath.startsWith(base+'/users') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' %>">Usuarios</a><% } %>
+    <a href="<%= base %>/notifications" class="rounded-lg px-3 py-2 font-medium <%= currentPath.startsWith(base+'/notifications') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50' %>">Notificaciones</a>
+    <% if(membership.role==='admin'){ %><details class="relative"><summary class="cursor-pointer rounded-lg px-3 py-2 font-medium text-slate-600 hover:bg-slate-50">Más opciones</summary><div class="z-20 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg md:absolute md:right-0 md:mt-2"><a class="block rounded-lg px-3 py-3 hover:bg-slate-50" href="<%= base %>/settings">Configuración</a><a class="block rounded-lg px-3 py-3 hover:bg-slate-50" href="<%= base %>/subscription">Cobros de AulaNexo</a><a class="block rounded-lg px-3 py-3 hover:bg-slate-50" href="<%= base %>/help">Ayuda y manual</a></div></details><% }else{ %><% if(membership.role==='student'){ %><a href="<%= base %>/profile" class="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-50">Mis datos</a><% } %><a href="<%= base %>/help" class="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-50">Ayuda</a><% } %>
+  </div>
+</nav>
+<% } %>
 <main id="main" class="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">

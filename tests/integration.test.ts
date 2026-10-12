@@ -1253,6 +1253,70 @@ test(
       },
     );
     await t.test(
+      "institute dashboard summarizes only its own courses, commissions and enrollments",
+      async () => {
+        const ownCourses = (
+          await rows(
+            "SELECT COUNT(*) AS total FROM courses WHERE institute_id=? AND active=1",
+            [a],
+          )
+        )[0].total;
+        const ownCommissions = (
+          await rows(
+            "SELECT COUNT(*) AS total FROM commissions c JOIN courses co ON co.institute_id=c.institute_id AND co.id=c.course_id WHERE c.institute_id=? AND c.active=1 AND co.active=1",
+            [a],
+          )
+        )[0].total;
+        const ownEnrollments = (
+          await rows(
+            "SELECT COUNT(*) AS total FROM enrollments WHERE institute_id=?",
+            [a],
+          )
+        )[0].total;
+        await write(
+          "INSERT INTO courses(institute_id,name,level) VALUES (?,'Foreign dashboard course','Z9')",
+          [b],
+        );
+        const response = await aa.get(`/i/${a}`);
+        assert.equal(response.status, 200);
+        for (const [label, count] of [
+          ["Cursos activos", ownCourses],
+          ["Comisiones activas", ownCommissions],
+          ["Inscripciones registradas", ownEnrollments],
+        ]) {
+          const expression = new RegExp(
+            `data-metric="${label}">\\s*${count}\\s*<`,
+          );
+          assert.match(response.text, expression);
+        }
+        assert.match(response.text, /Crear comisión/);
+        assert.match(response.text, /Académico/);
+        assert.match(response.text, /Más opciones/);
+        assert.doesNotMatch(response.text, /Foreign dashboard course/);
+        assert.doesNotMatch((await tt.get(`/i/${a}`)).text, /data-metric=/);
+        assert.equal((await aa.get(`/i/${b}`)).status, 403);
+      },
+    );
+    await t.test(
+      "empty institute dashboard guides administrators to create their first courses",
+      async () => {
+        const empty = await tenant("Empty");
+        await write(
+          "INSERT INTO memberships(institute_id,user_id,role,status) VALUES (?,?,'admin','approved')",
+          [empty, owner],
+        );
+        await write("UPDATE institutes SET settings=? WHERE id=?", [
+          JSON.stringify({ ...JSON.parse(settings), dueDay: null }),
+          empty,
+        ]);
+        const response = await oo.get(`/i/${empty}`);
+        assert.equal(response.status, 200);
+        assert.match(response.text, /Organizá tus primeros grupos/);
+        assert.match(response.text, /Completá la configuración de cuotas/);
+        assert.match(response.text, /data-metric="Cursos activos">\s*0\s*</);
+      },
+    );
+    await t.test(
       "50 concurrent authenticated dashboard requests remain within the stated latency",
       async () => {
         const start = performance.now();

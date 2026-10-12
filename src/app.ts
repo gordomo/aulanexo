@@ -20,7 +20,16 @@ export function createApp(checkDatabase: () => Promise<void>, features = true) {
   const app = express();
   app.disable("x-powered-by");
   if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          "upgrade-insecure-requests":
+            process.env.NODE_ENV === "production" ? [] : null,
+        },
+      },
+    }),
+  );
   app.set("view engine", "ejs");
   app.set("views", path.resolve("src/views"));
   app.use("/assets", express.static(path.resolve("src/public")));
@@ -49,6 +58,7 @@ export function createApp(checkDatabase: () => Promise<void>, features = true) {
       membership: null,
       money,
       roleLabel,
+      currentPath: _req.path,
     });
     res.set("Cache-Control", "no-store");
     next();

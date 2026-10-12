@@ -1,0 +1,78 @@
+<%- include('partials/header') %>
+<div class="mb-8 flex flex-col items-start justify-between gap-5 sm:flex-row">
+  <div class="w-full min-w-0 sm:w-auto sm:flex-1">
+    <p class="text-sm font-medium text-indigo-600">Resumen del instituto</p>
+    <h1 class="mt-2 break-words text-3xl font-bold tracking-tight sm:text-4xl"><%= membership.institute_name %></h1>
+    <p class="mt-3 text-slate-600">Cursos, grupos e inscripciones, en un vistazo.</p>
+  </div>
+  <a href="<%= base %>/commissions/new" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"><span aria-hidden="true">+</span> Crear comisión</a>
+</div>
+
+<section aria-label="Resumen académico" class="grid gap-4 sm:grid-cols-3 sm:gap-6">
+  <% for(const metric of metrics){ %>
+  <a href="<%= metric.href %>" class="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-300 sm:p-6 hover:shadow-md">
+    <div class="flex items-center justify-between gap-3 sm:block">
+      <h2 class="text-sm font-medium text-slate-600"><%= metric.label %></h2>
+      <p class="text-3xl font-bold tracking-tight text-slate-900 sm:mt-3 sm:text-4xl" data-metric="<%= metric.label %>"><%= metric.value %></p>
+    </div>
+    <p class="mt-2 text-xs leading-relaxed text-slate-500 sm:mt-3 sm:text-sm"><%= metric.hint %></p>
+    <span class="mt-4 hidden text-sm font-semibold text-indigo-600 sm:inline-flex">Consultar <span class="ml-2" aria-hidden="true">→</span></span>
+  </a>
+  <% } %>
+</section>
+
+<% if(needsConfiguration){ %>
+<div class="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
+  <div><h2 class="font-semibold text-amber-950">Completá la configuración de cuotas</h2><p class="mt-1 text-sm leading-relaxed text-amber-900">Definí el vencimiento antes de inscribir alumnos en comisiones con cuota mensual.</p></div>
+  <a href="<%= base %>/settings" class="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-950">Configurar</a>
+</div>
+<% } %>
+
+<div class="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+  <section aria-labelledby="commissions-title" class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5">
+      <div><h2 id="commissions-title" class="text-lg font-semibold">Comisiones activas</h2><p class="mt-1 text-sm text-slate-500">Tus grupos y sus inscripciones.</p></div>
+      <a href="<%= base %>/commissions" class="text-sm font-semibold text-indigo-600 hover:underline">Ver todas →</a>
+    </div>
+    <% if(!commissions.length){ %>
+    <div class="px-6 py-12 text-center">
+      <h3 class="text-lg font-semibold">Organizá tus primeros grupos</h3>
+      <p class="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-600">Primero creá un curso con su nivel. Después agregá una comisión con horarios, profesores y cupo.</p>
+      <a href="<%= base %>/courses" class="mt-6 inline-flex rounded-lg bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">Crear o consultar cursos</a>
+    </div>
+    <% }else{ %>
+    <ul class="divide-y divide-slate-100">
+      <% for(const commission of commissions){ %>
+      <li class="px-6 py-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0"><p class="break-words text-xs font-medium uppercase tracking-wide text-slate-500"><%= commission.course_name %> · <%= commission.level %></p><h3 class="mt-1 break-words font-semibold"><%= commission.name %></h3><p class="mt-2 break-words text-sm text-slate-600"><%= commission.schedule %> · Año <%= commission.academic_year %></p></div>
+          <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"><%= commission.enrolled %> / <%= commission.capacity %> inscripciones</span>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold">
+          <a href="<%= base %>/commissions/<%= commission.id %>" class="text-indigo-600 hover:underline">Ver comisión</a>
+          <% if(Number(commission.enrolled)<Number(commission.capacity)){ %><a href="<%= base %>/commissions/<%= commission.id %>/enroll" class="text-slate-700 hover:underline">Inscribir alumno</a><% }else{ %><span class="font-normal text-slate-500">Cupo completo</span><% } %>
+        </div>
+      </li>
+      <% } %>
+    </ul>
+    <% } %>
+  </section>
+
+  <aside class="space-y-6" aria-label="Accesos del instituto">
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold">Tareas frecuentes</h2>
+      <div class="mt-4 space-y-1">
+        <% for(const action of [{name:'Gestionar alumnos',hint:'Agregar y actualizar sus datos.',href:base+'/people/student'},{name:'Gestionar profesores',hint:'Organizar el equipo docente.',href:base+'/people/teacher'},{name:'Registrar asistencias',hint:'Elegir una clase y pasar lista.',href:base+'/attendance'}]){ %>
+        <a href="<%= action.href %>" class="block rounded-xl px-3 py-3 hover:bg-slate-50"><span class="block text-sm font-semibold text-slate-800"><%= action.name %> <span class="float-right text-indigo-600" aria-hidden="true">→</span></span><span class="mt-1 block text-xs leading-relaxed text-slate-500"><%= action.hint %></span></a>
+        <% } %>
+      </div>
+    </section>
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-3"><h2 class="text-lg font-semibold">Notificaciones</h2><span class="rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-700"><%= unreadNotifications %></span></div>
+      <p class="mt-3 text-sm leading-relaxed text-slate-600"><%= unreadNotifications ? 'Tenés mensajes sin leer para tu cuenta.' : 'Estás al día. No tenés mensajes sin leer.' %></p>
+      <a href="<%= base %>/notifications" class="mt-4 inline-flex text-sm font-semibold text-indigo-600 hover:underline">Ver mensajes →</a>
+    </section>
+    <a href="<%= base %>/help" class="block rounded-xl px-3 py-2 text-sm text-slate-500 hover:text-indigo-700">¿Necesitás ayuda? Consultá el manual →</a>
+  </aside>
+</div>
+<%- include('partials/footer') %>

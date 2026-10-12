@@ -6,7 +6,7 @@ export function help(res: Response) {
     {
       title: "Entrar y elegir instituto",
       steps: [
-        "Ingresá con tu correo y contraseña. En “Mis institutos” elegí el instituto donde querés trabajar.",
+        "Ingresá con tu correo y contraseña. Abrí el menú de tu nombre y elegí Mis institutos para seleccionar dónde trabajar.",
         "Tu rol y la aprobación son independientes en cada instituto. Una solicitud pendiente no habilita el acceso.",
         "Si olvidaste la contraseña, elegí “Recuperar contraseña” en el acceso. Recibirás un enlace válido durante una hora.",
         "Usá “Cerrar sesión” cuando termines, especialmente en dispositivos compartidos.",
@@ -25,6 +25,16 @@ export function help(res: Response) {
   ];
   if (role === "admin")
     sections.push(
+      {
+        title: "Usar el dashboard del instituto",
+        steps: [
+          "Inicio muestra cursos activos, comisiones activas e inscripciones registradas. Un alumno inscripto en dos comisiones cuenta como dos inscripciones.",
+          "En Comisiones activas podés consultar cada grupo, ver su cupo e inscribir un alumno. Ver todas abre el listado completo.",
+          "Académico reúne cursos, comisiones, alumnos, profesores y asistencias. Pagos, Usuarios y Notificaciones tienen accesos directos.",
+          "Más opciones reúne la configuración, los cobros de AulaNexo y el manual. El menú de tu nombre permite cambiar de instituto o cerrar la sesión.",
+        ],
+        link: b,
+      },
       {
         title: "Aprobar solicitudes y administrar roles",
         steps: [
@@ -49,7 +59,7 @@ export function help(res: Response) {
       {
         title: "Crear cursos y comisiones",
         steps: [
-          "En “Cursos”, abrí “Cursos y niveles” y creá el curso, por ejemplo Inglés con nivel A1.",
+          "En el menú Académico, abrí Cursos y niveles y creá el curso, por ejemplo Inglés con nivel A1.",
           "Volvé a Comisiones y elegí “Crear comisión”. Indicá año, fechas, horario, aula, modalidad, cupo y precios. Antes de inscribir alumnos en una comisión con cuota mensual, configurá su vencimiento desde Configuración.",
           "Desde la comisión, usá “Asignar profesor”. Podés asignar varios profesores.",
           "Una baja conserva el historial. Los cargos ya generados no se modifican al cambiar precios o dar de baja un curso.",
@@ -81,7 +91,7 @@ export function help(res: Response) {
       {
         title: "Configurar el instituto y sus avisos",
         steps: [
-          "Abrí “Configuración” para elegir vencimiento de cuotas, descuento por defecto, cobro de matrícula, medios de pago y frecuencia de recordatorios. Los recordatorios quedan deshabilitados hasta que los configures.",
+          "En Más opciones, abrí Configuración para elegir vencimiento de cuotas, descuento por defecto, cobro de matrícula, medios de pago y frecuencia de recordatorios. Los recordatorios quedan deshabilitados hasta que los configures.",
           "Escribí un método de pago por línea. Los cambios afectan a futuros cargos e inscripciones.",
           "En “Notificaciones”, elegí Crear y definí título, mensaje y destinatarios: todos, un rol, un usuario o una comisión.",
           "Podés elegir enviar también por correo. Para habilitar recordatorios de deuda configurá su frecuencia: el primer aviso se envía los días después del vencimiento que hayas elegido y los siguientes con el intervalo configurado, mientras la deuda siga pendiente.",
@@ -91,7 +101,7 @@ export function help(res: Response) {
       {
         title: "Consultar los cobros de AulaNexo",
         steps: [
-          "Abrí “Cobros de AulaNexo” para consultar los conceptos, importes, vencimientos y estados de los cargos registrados.",
+          "En Más opciones, abrí Cobros de AulaNexo para consultar los conceptos, importes, vencimientos y estados de los cargos registrados.",
           "El superadministrador registra manualmente los cargos pactados y sus cobros. El alta del instituto no genera cargos automáticamente.",
           "Estos cargos están separados de las cuotas y pagos de los alumnos.",
         ],

@@ -1,3 +1,4 @@
+import { instituteDashboard } from "./dashboard.js";
 import { Router } from "express";
 import { authenticated, tenant, admin, csrf } from "../security.js";
 import { rows, write, transaction, audit, type DB } from "../db/index.js";
@@ -49,6 +50,10 @@ institute.get("/", async (_req, res) => {
   const t = res.locals.tenantId,
     r = res.locals.membership.role,
     b = res.locals.base;
+  if (r === "admin") {
+    await instituteDashboard(res);
+    return;
+  }
   const notices = (
     await rows(
       "SELECT COUNT(*) AS total FROM notification_recipients WHERE institute_id=? AND user_id=? AND read_at IS NULL",

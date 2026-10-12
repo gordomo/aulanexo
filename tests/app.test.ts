@@ -32,3 +32,30 @@ test("landing page is accessible and unknown routes return 404", async () => {
   assert.ok(result.headers["content-security-policy"]);
   assert.equal((await request(app).get("/unknown")).status, 404);
 });
+
+test("HTTPS upgrading is kept for production and disabled for HTTP development", async () => {
+  const previous = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "development";
+    const development = await request(createApp(async () => {}, false)).get(
+      "/",
+    );
+    assert.doesNotMatch(
+      development.headers["content-security-policy"],
+      /upgrade-insecure-requests/,
+    );
+    process.env.NODE_ENV = "production";
+    const production = await request(createApp(async () => {}, false)).get("/");
+    assert.match(
+      production.headers["content-security-policy"],
+      /upgrade-insecure-requests/,
+    );
+    assert.match(
+      production.headers["content-security-policy"],
+      /default-src 'self'/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
+});
