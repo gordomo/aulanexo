@@ -148,6 +148,20 @@ test(
       assert.equal(response.status, 302);
       return agent;
     }
+    await t.test(
+      "superadministrator login opens the platform panel",
+      async () => {
+        const agent = request.agent(server);
+        const response = await agent.get("/login");
+        const csrf = /name="_csrf" value="([a-f0-9]+)"/.exec(response.text)![1];
+        const signed = await agent
+          .post("/login")
+          .type("form")
+          .send({ _csrf: csrf, email: `owner-${suffix}@test.local`, password });
+        assert.equal(signed.status, 302);
+        assert.equal(signed.headers.location, "/platform");
+      },
+    );
     const aa = await login(admin),
       ss = await login(student),
       tt = await login(teacher),
@@ -922,6 +936,12 @@ test(
           ])
         )[0];
         assert.equal(entry.status, "pending");
+        const dashboard = await oo.get("/platform");
+        assert.equal(dashboard.status, 200);
+        assert.match(dashboard.text, /Solicitudes pendientes/);
+        assert.ok(dashboard.text.includes(data.institute_name));
+        assert.ok(dashboard.text.includes(`/platform/requests/${entry.id}`));
+
         assert.equal((await aa.get("/platform/requests")).status, 403);
         assert.equal((await anonymous.get("/platform/requests")).status, 302);
         assert.equal(

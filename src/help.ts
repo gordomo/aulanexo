@@ -151,7 +151,7 @@ export function platformHelp(res: Response) {
         title: "Revisar solicitudes de acceso",
         steps: [
           "Los responsables de institutos pueden solicitar el servicio desde Solicitar acceso en la página pública.",
-          "En Plataforma elegí Solicitudes de acceso. Abrí una solicitud para ver el instituto, responsable y datos de contacto.",
+          "Al iniciar sesión como superadministrador entrás al Panel de plataforma. Allí se muestran las solicitudes pendientes con el botón Revisar solicitud. También podés abrir Ver todas las solicitudes para consultar el historial.",
           "Crear instituto y aprobar abre un formulario con los datos recibidos. Definí el identificador, plan, abono y vencimiento antes de guardar.",
           "Al guardar se crea el instituto, la solicitud queda aprobada y se envía la invitación al primer administrador. El responsable recibe también el plan, importe y vencimiento.",
           "Rechazar solicitud exige un motivo y envía la respuesta por correo. Una solicitud resuelta no puede aprobarse ni rechazarse otra vez.",

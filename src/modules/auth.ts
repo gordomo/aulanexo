@@ -74,7 +74,7 @@ auth.post("/login", csrf, async (req, res) => {
   if (!valid || !user.active)
     throw new InputError("Correo o contraseña incorrectos.");
   await signIn(res, user.id);
-  res.redirect("/institutes");
+  res.redirect(user.super_admin ? "/platform" : "/institutes");
 });
 auth.post("/logout", csrf, async (_req, res) => {
   await write("DELETE FROM sessions WHERE token_hash=?", [

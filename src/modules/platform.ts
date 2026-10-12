@@ -21,12 +21,20 @@ platform.use(authenticated, superAdmin);
 platform.use("/requests", requestReview);
 platform.get("/help", (_req, res) => platformHelp(res));
 platform.get("/", async (_req, res) => {
+  const [pendingRequests, count] = await Promise.all([
+    rows(
+      "SELECT id,institute_name,contact_name,created_at FROM institute_requests WHERE status='pending' ORDER BY created_at DESC,id DESC LIMIT 5",
+    ),
+    rows(
+      "SELECT COUNT(*) AS total FROM institute_requests WHERE status='pending'",
+    ),
+  ]);
   const data = await rows(
     "SELECT i.*,COALESCE((SELECT SUM(cents) FROM platform_charges p WHERE p.institute_id=i.id AND p.status='pending'),0) AS balance FROM institutes i ORDER BY name",
   );
   page(
     res,
-    "Institutos de AulaNexo",
+    "Panel de plataforma",
     [
       "Instituto",
       "Contacto",
@@ -46,6 +54,11 @@ platform.get("/", async (_req, res) => {
       [{ label: "Administrar", href: `/platform/${i.id}` }],
     ]),
     {
+      pendingRequests,
+      pendingRequestCount: Number(count[0].total),
+      emptyTitle: "Todavía no hay institutos creados",
+      emptyDescription:
+        "Al aprobar una solicitud y crear su instituto, aparecerá en esta lista.",
       actions: [
         { label: "Crear instituto", href: "/platform/new" },
         { label: "Solicitudes de acceso", href: "/platform/requests" },
