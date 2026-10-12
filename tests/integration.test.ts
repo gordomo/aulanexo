@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { createApp } from "../src/app.js";
 import { pool, migrate, write, rows } from "../src/db/index.js";
 import { passwordHash } from "../src/security.js";
-import { generateCharges, reminders } from "../src/jobs.js";
+import { generateStudentCharges, reminders } from "../src/jobs.js";
 import { today, nextBillingMonth } from "../src/domain.js";
 const enabled = process.env.RUN_INTEGRATION === "1";
 test(
@@ -59,6 +59,8 @@ test(
       discountPercent: 0,
       paymentMethods: ["Efectivo"],
       automaticReminders: true,
+      reminderIntervalDays: 7,
+      reminderDelayDays: 1,
     });
     async function tenant(name: string) {
       return (
@@ -193,6 +195,7 @@ test(
         const response = await post(aa, `/i/${a}/commissions/${c1}/enroll`, {
           person_id: foreignPerson,
           discount: 0,
+          enrollment_due_date: day,
         });
         assert.equal(response.status, 400);
         await assert.rejects(() =>
@@ -267,6 +270,7 @@ test(
             await post(aa, `/i/${a}/commissions/${c1}/enroll`, {
               person_id: sid,
               discount: 10,
+              enrollment_due_date: day,
             })
           ).status,
           302,
@@ -276,6 +280,7 @@ test(
             await post(aa, `/i/${a}/commissions/${c1}/enroll`, {
               person_id: sid,
               discount: 0,
+              enrollment_due_date: day,
             })
           ).status,
           400,
@@ -291,6 +296,7 @@ test(
             await post(aa, `/i/${a}/commissions/${c1}/enroll`, {
               person_id: another,
               discount: 0,
+              enrollment_due_date: day,
             })
           ).status,
           400,
@@ -461,14 +467,39 @@ test(
       },
     );
     await t.test(
-      "monthly fee and platform billing generation are idempotent",
+      "student fees remain automatic and idempotent without generating platform charges",
       async () => {
         await write(
           "UPDATE enrollments SET billing_start=? WHERE institute_id=?",
           [day.slice(0, 7) + "-01", a],
         );
-        await generateCharges();
-        await generateCharges();
+        const original = (
+          await rows("SELECT settings FROM institutes WHERE id=?", [a])
+        )[0].settings;
+        await write("UPDATE institutes SET settings=? WHERE id=?", [
+          JSON.stringify({ ...original, dueDay: null }),
+          a,
+        ]);
+        await generateStudentCharges();
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM charges WHERE institute_id=? AND kind='monthly'",
+              [a],
+            )
+          )[0].total,
+          0,
+        );
+        assert.equal(
+          (await aa.get(`/i/${a}/commissions/${c2}/enroll`)).status,
+          400,
+        );
+        await write("UPDATE institutes SET settings=? WHERE id=?", [
+          JSON.stringify(original),
+          a,
+        ]);
+        await generateStudentCharges();
+        await generateStudentCharges();
         const charges = await rows(
           "SELECT cents FROM charges WHERE institute_id=? AND kind='monthly' AND period=?",
           [a, day.slice(0, 7)],
@@ -482,7 +513,7 @@ test(
               [a, day.slice(0, 7)],
             )
           )[0].total,
-          1,
+          0,
         );
       },
     );
@@ -549,12 +580,10 @@ test(
           contact_email: "contact@test.local",
           admin_email: `owner-${suffix}@test.local`,
           phone: "",
-          monthly: "100.00",
-          due_day: "10",
         });
         assert.equal(response.status, 302);
         const blankForm = await oo.get("/platform/new");
-        assert.doesNotMatch(blankForm.text, /name="plan"/);
+        assert.doesNotMatch(blankForm.text, /name="(?:plan|monthly|due_day)"/);
         const created = (
           await rows("SELECT id FROM institutes WHERE slug=?", [
             `invited-${suffix}`,
@@ -566,9 +595,15 @@ test(
             [`owner-${suffix}@test.local`],
           )
         )[0].body;
-        assert.doesNotMatch(message, /Plan:/);
+        const initialSettings = (
+          await rows("SELECT settings FROM institutes WHERE id=?", [created.id])
+        )[0].settings;
+        assert.equal(initialSettings.dueDay, null);
+        assert.equal(initialSettings.automaticReminders, false);
+
+        assert.doesNotMatch(message, /Plan:|Abono mensual:|Vencimiento: día/);
         const editForm = await oo.get(`/platform/${created.id}/edit`);
-        assert.doesNotMatch(editForm.text, /name="plan"/);
+        assert.doesNotMatch(editForm.text, /name="(?:plan|monthly|due_day)"/);
         assert.equal(
           (
             await post(oo, `/platform/${created.id}/edit`, {
@@ -576,8 +611,6 @@ test(
               slug: `invited-${suffix}`,
               contact_email: "contact@test.local",
               phone: "",
-              monthly: "125.50",
-              due_day: "15",
             })
           ).status,
           302,
@@ -596,7 +629,7 @@ test(
         assert.equal((await oo.get(`/i/${created.id}`)).status, 200);
         const abono = await oo.get(`/i/${created.id}/subscription`);
         assert.equal(abono.status, 200);
-        assert.match(abono.text, /125,50/);
+        assert.match(abono.text, /modelo comercial.*pendiente de definición/);
         assert.doesNotMatch(abono.text, /Plan Estándar/);
 
         assert.equal(
@@ -621,6 +654,21 @@ test(
             [created.id],
           )
         )[0].id;
+        const visibleCharge = await oo.get(`/i/${created.id}/subscription`);
+        assert.equal(visibleCharge.status, 200);
+        assert.match(visibleCharge.text, /12,34/);
+        assert.match(visibleCharge.text, /Extra/);
+        await generateStudentCharges();
+        await generateStudentCharges();
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM platform_charges WHERE institute_id=?",
+              [created.id],
+            )
+          )[0].total,
+          1,
+        );
         assert.equal(
           (
             await post(oo, `/platform/${created.id}/charges/${charge}/pay`, {
@@ -726,6 +774,96 @@ test(
           )[0].total,
           1,
         );
+      },
+    );
+    await t.test(
+      "reminders require configured timing and follow the administrator's interval",
+      async () => {
+        const original = (
+          await rows("SELECT settings FROM institutes WHERE id=?", [a])
+        )[0].settings;
+        const due = new Date(Date.parse(day) - 2 * 86400000)
+          .toISOString()
+          .slice(0, 10);
+        const charge = (
+          await write(
+            "INSERT INTO charges(institute_id,person_id,kind,description,cents,due_date) VALUES (?,?,'manual','Configured reminder',1000,?)",
+            [a, sid, due],
+          )
+        ).insertId;
+        await write("UPDATE institutes SET settings=? WHERE id=?", [
+          JSON.stringify({
+            ...original,
+            reminderIntervalDays: null,
+            reminderDelayDays: null,
+          }),
+          a,
+        ]);
+        await reminders();
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM outbox WHERE dedupe_key=?",
+              [`debt:${charge}:${day}`],
+            )
+          )[0].total,
+          0,
+        );
+        const valid = {
+          due_day: "31",
+          discount: "0",
+          enrollment_enabled: "yes",
+          payment_methods: "Efectivo",
+          reminders: "yes",
+        };
+        assert.equal((await post(aa, `/i/${a}/settings`, valid)).status, 400);
+        assert.equal(
+          (
+            await post(aa, `/i/${a}/settings`, {
+              ...valid,
+              reminder_delay_days: "2",
+              reminder_interval_days: "3",
+            })
+          ).status,
+          302,
+        );
+        await reminders();
+        await reminders();
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM outbox WHERE dedupe_key=?",
+              [`debt:${charge}:${day}`],
+            )
+          )[0].total,
+          1,
+        );
+        const notScheduled = (
+          await write(
+            "INSERT INTO charges(institute_id,person_id,kind,description,cents,due_date) VALUES (?,?,'manual','Not scheduled',1000,?)",
+            [
+              a,
+              sid,
+              new Date(Date.parse(day) - 3 * 86400000)
+                .toISOString()
+                .slice(0, 10),
+            ],
+          )
+        ).insertId;
+        await reminders();
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM outbox WHERE dedupe_key=?",
+              [`debt:${notScheduled}:${day}`],
+            )
+          )[0].total,
+          0,
+        );
+        await write("UPDATE institutes SET settings=? WHERE id=?", [
+          JSON.stringify(original),
+          a,
+        ]);
       },
     );
     await t.test(
@@ -846,6 +984,8 @@ test(
               enrollment_enabled: "yes",
               payment_methods: "Efectivo\nTransferencia",
               reminders: "yes",
+              reminder_interval_days: "7",
+              reminder_delay_days: "1",
             })
           ).status,
           302,
@@ -870,6 +1010,7 @@ test(
             post(aa, `/i/${a}/commissions/${c2}/enroll`, {
               person_id,
               discount: 0,
+              enrollment_due_date: day,
             }),
           ),
         );
@@ -976,7 +1117,7 @@ test(
         );
         const form = await oo.get(`/platform/new?request=${entry.id}`);
         assert.equal(form.status, 200);
-        assert.doesNotMatch(form.text, /name="plan"/);
+        assert.doesNotMatch(form.text, /name="(?:plan|monthly|due_day)"/);
         assert.ok(form.text.includes(data.email));
         assert.ok(form.text.includes(`name="_request_id" value="${entry.id}"`));
         assert.equal(
@@ -988,8 +1129,6 @@ test(
               contact_email: data.email,
               admin_email: data.email,
               phone: data.phone,
-              monthly: "1234.56",
-              due_day: "12",
             })
           ).status,
           302,
@@ -1016,7 +1155,7 @@ test(
           )
         )[0].body;
         assert.match(message, /invite\/[a-f0-9]{64}/);
-        assert.match(message, /1.234,56/);
+        assert.doesNotMatch(message, /Abono mensual:|Vencimiento: día/);
         assert.equal(
           (
             await post(oo, "/platform/new", {
@@ -1026,8 +1165,6 @@ test(
               contact_email: data.email,
               admin_email: data.email,
               phone: data.phone,
-              monthly: "1234.56",
-              due_day: "12",
             })
           ).status,
           400,

@@ -21,6 +21,9 @@ test("mid-month entry starts billing next month, including year rollover", () =>
   assert.equal(nextBillingMonth("2026-10-15"), "2026-11-01");
   assert.equal(nextBillingMonth("2026-12-31"), "2027-01-01");
   assert.equal(dueDate("2027-02", 28), "2027-02-28");
+  assert.equal(dueDate("2027-02", 31), "2027-02-28");
+  assert.equal(dueDate("2028-02", 31), "2028-02-29");
+  assert.equal(dueDate("2027-04", 31), "2027-04-30");
   assert.throws(() => date("2026-02-30"), InputError);
 });
 test("password hashing uses unique salts and verifies securely", async () => {

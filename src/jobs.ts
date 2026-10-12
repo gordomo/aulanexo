@@ -1,7 +1,7 @@
 import { rows, write, transaction } from "./db/index.js";
 import { today, dueDate, discounted, money } from "./domain.js";
 import { queueMail, flushMail } from "./mail.js";
-export async function generateCharges() {
+export async function generateStudentCharges() {
   const day = today(),
     period = day.slice(0, 7);
   await transaction(async (db) => {
@@ -13,6 +13,8 @@ export async function generateCharges() {
     for (const e of enrolled) {
       const settings =
         typeof e.settings === "string" ? JSON.parse(e.settings) : e.settings;
+      const dueDay = Number(settings.dueDay);
+      if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) continue;
       const amount = discounted(
         Number(e.monthly_cents),
         Number(e.discount_percent),
@@ -27,28 +29,11 @@ export async function generateCharges() {
             period,
             `Cuota ${period} · ${e.course_name} / ${e.commission_name}`,
             amount,
-            dueDate(period, settings.dueDay ?? 10),
+            dueDate(period, dueDay),
           ],
           db,
         );
     }
-    const institutes = await rows(
-      "SELECT * FROM institutes WHERE active=1 AND monthly_cents>0",
-      [],
-      db,
-    );
-    for (const i of institutes)
-      await write(
-        "INSERT IGNORE INTO platform_charges(institute_id,description,period,cents,due_date) VALUES (?,?,?,?,?)",
-        [
-          i.id,
-          `Abono de AulaNexo · ${period}`,
-          period,
-          i.monthly_cents,
-          dueDate(period, i.due_day),
-        ],
-        db,
-      );
   });
 }
 export async function reminders() {
@@ -60,11 +45,22 @@ export async function reminders() {
   for (const c of data) {
     const settings =
       typeof c.settings === "string" ? JSON.parse(c.settings) : c.settings;
-    if (!settings.automaticReminders) continue;
+    const interval = Number(settings.reminderIntervalDays),
+      delay = Number(settings.reminderDelayDays);
+    if (
+      !settings.automaticReminders ||
+      !Number.isInteger(interval) ||
+      interval < 1 ||
+      interval > 365 ||
+      !Number.isInteger(delay) ||
+      delay < 1 ||
+      delay > 365
+    )
+      continue;
     const elapsed = Math.floor(
       (Date.parse(day) - Date.parse(c.due_date)) / 86400000,
     );
-    if (elapsed < 1 || (elapsed - 1) % 7 !== 0) continue;
+    if (elapsed < delay || (elapsed - delay) % interval !== 0) continue;
     await transaction(async (db) => {
       const key = `debt:${c.id}:${day}`;
       if (
@@ -122,7 +118,7 @@ export async function runJobs() {
       "SELECT GET_LOCK('aulanexo_jobs',0) AS acquired",
     );
     if (!lock[0]?.acquired) return;
-    await generateCharges();
+    await generateStudentCharges();
     await reminders();
     await write("DELETE FROM sessions WHERE expires_at<UTC_TIMESTAMP()");
     await flushMail();

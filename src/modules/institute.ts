@@ -103,7 +103,7 @@ institute.get("/", async (_req, res) => {
               { label: "Profesores", href: b + "/people/teacher" },
               { label: "Usuarios y roles", href: b + "/users" },
               { label: "Configuración", href: b + "/settings" },
-              { label: "Abono de AulaNexo", href: b + "/subscription" },
+              { label: "Cobros de AulaNexo", href: b + "/subscription" },
             ]
           : r === "student"
             ? [{ label: "Mis datos", href: b + "/profile" }]
@@ -838,12 +838,21 @@ institute.post("/commissions/:id/toggle", admin, csrf, async (req, res) => {
   res.redirect(`${res.locals.base}/commissions/${id(req.params.id)}`);
 });
 institute.get("/commissions/:id/enroll", admin, async (req, res) => {
-  await accessibleCommission(
+  const commission = await accessibleCommission(
     res.locals.tenantId,
     id(req.params.id),
     res.locals.user.id,
     "admin",
   );
+  if (
+    Number(commission.monthly_cents) > 0 &&
+    (!Number.isInteger(Number(res.locals.settings.dueDay)) ||
+      Number(res.locals.settings.dueDay) < 1 ||
+      Number(res.locals.settings.dueDay) > 31)
+  )
+    throw new InputError(
+      "Primero configurá el día de vencimiento de cuotas en Configuración del instituto.",
+    );
   const people = await rows(
     "SELECT id,first_name,last_name FROM people WHERE institute_id=? AND kind='student' AND active=1 ORDER BY last_name",
     [res.locals.tenantId],
@@ -863,13 +872,24 @@ institute.get("/commissions/:id/enroll", admin, async (req, res) => {
       },
       {
         name: "discount",
-        label: "Descuento (%)",
+        label: "Descuento sobre la cuota mensual (%)",
         type: "number",
         min: "0",
         max: "100",
         value: res.locals.settings.discountPercent ?? 0,
         required: true,
       },
+      ...(res.locals.settings.enrollmentEnabled &&
+      Number(commission.enrollment_cents) > 0
+        ? [
+            {
+              name: "enrollment_due_date",
+              label: "Vencimiento de la matrícula",
+              type: "date",
+              required: true,
+            },
+          ]
+        : []),
     ],
     {
       description:
@@ -919,6 +939,18 @@ institute.post("/commissions/:id/enroll", admin, csrf, async (req, res) => {
     )[0].total;
     if (Number(total) >= Number(c.capacity))
       throw new InputError("La comisión no tiene cupos disponibles.");
+    const dueDay = Number(res.locals.settings.dueDay);
+    if (
+      Number(c.monthly_cents) > 0 &&
+      (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31)
+    )
+      throw new InputError(
+        "Configurá el vencimiento de cuotas antes de inscribir alumnos en una comisión con cuota mensual.",
+      );
+    const enrollmentDueDate =
+      res.locals.settings.enrollmentEnabled && Number(c.enrollment_cents) > 0
+        ? date(req.body.enrollment_due_date)
+        : null;
     const billing = nextBillingMonth(today());
     const result = await write(
       "INSERT INTO enrollments(institute_id,person_id,commission_id,billing_start,discount_percent) VALUES (?,?,?,?,?)",
@@ -934,7 +966,7 @@ institute.post("/commissions/:id/enroll", admin, csrf, async (req, res) => {
           result.insertId,
           today().slice(0, 7),
           c.enrollment_cents,
-          today(),
+          enrollmentDueDate,
         ],
         db,
       );
@@ -1008,13 +1040,14 @@ institute.get("/settings", admin, (_req, res) => {
         label: "Día de vencimiento de cuotas",
         type: "number",
         min: "1",
-        max: "28",
-        value: s.dueDay ?? 10,
+        max: "31",
+        value: s.dueDay ?? "",
+        hint: "Si el mes no tiene ese día, el vencimiento será el último día del mes.",
         required: true,
       },
       {
         name: "discount",
-        label: "Descuento por defecto para nuevas inscripciones (%)",
+        label: "Descuento por defecto sobre cuotas mensuales (%)",
         type: "number",
         min: "0",
         max: "100",
@@ -1045,8 +1078,30 @@ institute.get("/settings", admin, (_req, res) => {
           { value: "yes", label: "Habilitados" },
           { value: "no", label: "Deshabilitados" },
         ],
-        value: s.automaticReminders ? "yes" : "no",
+        value:
+          s.automaticReminders && s.reminderIntervalDays && s.reminderDelayDays
+            ? "yes"
+            : "no",
         required: true,
+      },
+      {
+        name: "reminder_delay_days",
+        label:
+          "Enviar el primer recordatorio cuántos días después del vencimiento",
+        type: "number",
+        min: "1",
+        max: "365",
+        value: s.reminderDelayDays ?? "",
+        hint: "Obligatorio al habilitar recordatorios automáticos.",
+      },
+      {
+        name: "reminder_interval_days",
+        label: "Repetir recordatorios cada cuántos días",
+        type: "number",
+        min: "1",
+        max: "365",
+        value: s.reminderIntervalDays ?? "",
+        hint: "Obligatorio al habilitar recordatorios. Los avisos se repiten con la frecuencia que elijas mientras la deuda siga pendiente.",
       },
     ],
     {
@@ -1066,13 +1121,32 @@ institute.post("/settings", admin, csrf, async (req, res) => {
     methods.some((m) => m.length > 60)
   )
     throw new InputError("Definí entre 1 y 20 métodos de hasta 60 caracteres.");
+  const automaticReminders =
+    option(req.body.reminders, ["yes", "no"]) === "yes";
+  const reminderIntervalDays = req.body.reminder_interval_days
+    ? integer(
+        req.body.reminder_interval_days,
+        "Frecuencia de recordatorios",
+        1,
+        365,
+      )
+    : null;
+  const reminderDelayDays = req.body.reminder_delay_days
+    ? integer(req.body.reminder_delay_days, "Primer recordatorio", 1, 365)
+    : null;
+  if (automaticReminders && (!reminderIntervalDays || !reminderDelayDays))
+    throw new InputError(
+      "Definí el primer aviso y la frecuencia antes de habilitar los recordatorios automáticos.",
+    );
   const settings = {
-    dueDay: integer(req.body.due_day, "Vencimiento", 1, 28),
+    dueDay: integer(req.body.due_day, "Vencimiento", 1, 31),
     discountPercent: integer(req.body.discount, "Descuento", 0, 100),
     enrollmentEnabled:
       option(req.body.enrollment_enabled, ["yes", "no"]) === "yes",
     paymentMethods: [...new Set(methods)],
-    automaticReminders: option(req.body.reminders, ["yes", "no"]) === "yes",
+    automaticReminders,
+    reminderIntervalDays,
+    reminderDelayDays,
   };
   await write("UPDATE institutes SET settings=? WHERE id=?", [
     JSON.stringify(settings),
@@ -1082,18 +1156,13 @@ institute.post("/settings", admin, csrf, async (req, res) => {
   res.redirect(res.locals.base);
 });
 institute.get("/subscription", admin, async (_req, res) => {
-  const i = (
-    await rows("SELECT monthly_cents,due_day FROM institutes WHERE id=?", [
-      res.locals.tenantId,
-    ])
-  )[0];
   const data = await rows(
     "SELECT * FROM platform_charges WHERE institute_id=? ORDER BY due_date DESC",
     [res.locals.tenantId],
   );
   page(
     res,
-    "Abono de AulaNexo",
+    "Cobros de AulaNexo",
     ["Concepto", "Importe", "Vencimiento", "Estado", "Fecha de pago"],
     data.map((c) => [
       c.description,
@@ -1103,7 +1172,8 @@ institute.get("/subscription", admin, async (_req, res) => {
       c.paid_date ?? "—",
     ]),
     {
-      description: `Abono mensual: ${money(i.monthly_cents)}. Vencimiento: día ${i.due_day}. Los cobros son registrados por el administrador de la plataforma.`,
+      description:
+        "Se muestran los cargos efectivamente registrados por el superadministrador, con sus importes y vencimientos. El modelo comercial de AulaNexo está pendiente de definición.",
     },
   );
 });

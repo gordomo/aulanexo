@@ -36,7 +36,7 @@ instituteRequests.get("/", (_req, res) =>
     {
       button: "Enviar solicitud",
       description:
-        "Revisaremos tu solicitud y te responderemos por correo. Si se aprueba, recibirás una invitación para administrar tu instituto y conocerás el importe y el vencimiento del abono. No necesitás crear una cuenta para solicitar el servicio.",
+        "Revisaremos tu solicitud y te responderemos por correo. Si se aprueba, recibirás una invitación para administrar tu instituto. No necesitás crear una cuenta para solicitar el servicio.",
       backHref: "/",
     },
   ),
@@ -122,7 +122,7 @@ requestReview.get("/", async (_req, res) => {
     ]),
     {
       description:
-        "Las solicitudes no habilitan institutos ni usuarios. Revisalas y definí el abono antes de enviar la invitación.",
+        "Las solicitudes no habilitan institutos ni usuarios. Revisalas antes de crear el instituto y enviar la invitación.",
       actions: [{ label: "Institutos", href: "/platform" }],
     },
   );

@@ -50,7 +50,7 @@ export function help(res: Response) {
         title: "Crear cursos y comisiones",
         steps: [
           "En “Cursos”, abrí “Cursos y niveles” y creá el curso, por ejemplo Inglés con nivel A1.",
-          "Volvé a Comisiones y elegí “Crear comisión”. Indicá año, fechas, horario, aula, modalidad, cupo y precios.",
+          "Volvé a Comisiones y elegí “Crear comisión”. Indicá año, fechas, horario, aula, modalidad, cupo y precios. Antes de inscribir alumnos en una comisión con cuota mensual, configurá su vencimiento desde Configuración.",
           "Desde la comisión, usá “Asignar profesor”. Podés asignar varios profesores.",
           "Una baja conserva el historial. Los cargos ya generados no se modifican al cambiar precios o dar de baja un curso.",
         ],
@@ -59,9 +59,9 @@ export function help(res: Response) {
       {
         title: "Inscribir un alumno",
         steps: [
-          "Abrí una comisión y elegí “Inscribir alumno”. Seleccioná un alumno activo y su descuento.",
+          "Abrí una comisión y elegí “Inscribir alumno”. Seleccioná un alumno activo y el descuento sobre la cuota mensual. La matrícula conserva su importe.",
           "El sistema rechaza inscripciones duplicadas y comisiones sin cupo. No controla superposición de horarios.",
-          "Al confirmar autorizás la asistencia durante el mes actual. Las cuotas comienzan el próximo mes; la matrícula se cobra al inscribir si está habilitada.",
+          "Al confirmar autorizás la asistencia durante el mes actual. Las cuotas comienzan el próximo mes. Si la matrícula está habilitada y tiene importe, elegí su fecha de vencimiento; el cargo se crea al inscribir.",
           "Esta versión no permite quitar una inscripción individual. Consultá el alcance acordado antes de realizar cambios de grupo.",
         ],
         link: b + "/commissions",
@@ -69,7 +69,7 @@ export function help(res: Response) {
       {
         title: "Gestionar cuotas, pagos y deudas",
         steps: [
-          "En “Pagos” consultá todos los cargos o filtrá Pendientes. Las cuotas mensuales se generan automáticamente según las inscripciones y precios configurados.",
+          "En “Pagos” consultá todos los cargos o filtrá Pendientes. Las cuotas mensuales se generan automáticamente según las inscripciones, precios y vencimiento configurados. Sin un vencimiento definido no se generan cuotas.",
           "“Agregar cargo manual” permite cobrar otros conceptos al alumno seleccionado. Indicá importe y vencimiento.",
           "Elegí “Cobrar” para registrar fecha, método y referencia. Se cobra el importe completo; no hay pagos parciales ni cobro online.",
           "Al confirmar se genera un recibo interno. Podés imprimirlo o guardar como PDF desde el diálogo de impresión del navegador. Si hay correo en la ficha, se envía una copia por correo.",
@@ -81,18 +81,18 @@ export function help(res: Response) {
       {
         title: "Configurar el instituto y sus avisos",
         steps: [
-          "Abrí “Configuración” para elegir vencimiento de cuotas, descuento por defecto, cobro de matrícula, medios de pago y recordatorios automáticos.",
+          "Abrí “Configuración” para elegir vencimiento de cuotas, descuento por defecto, cobro de matrícula, medios de pago y frecuencia de recordatorios. Los recordatorios quedan deshabilitados hasta que los configures.",
           "Escribí un método de pago por línea. Los cambios afectan a futuros cargos e inscripciones.",
           "En “Notificaciones”, elegí Crear y definí título, mensaje y destinatarios: todos, un rol, un usuario o una comisión.",
-          "Podés elegir enviar también por correo. Los recordatorios automáticos de deuda se envían al día siguiente del vencimiento y luego semanalmente mientras siga pendiente.",
+          "Podés elegir enviar también por correo. Para habilitar recordatorios de deuda configurá su frecuencia: el primer aviso se envía los días después del vencimiento que hayas elegido y los siguientes con el intervalo configurado, mientras la deuda siga pendiente.",
         ],
         link: b + "/settings",
       },
       {
-        title: "Consultar el abono de AulaNexo",
+        title: "Consultar los cobros de AulaNexo",
         steps: [
-          "Abrí “Abono” para ver el importe mensual, día de vencimiento y cargos del instituto.",
-          "Los pagos del abono son registrados por el superadministrador de la plataforma.",
+          "Abrí “Cobros de AulaNexo” para consultar los conceptos, importes, vencimientos y estados de los cargos registrados.",
+          "El superadministrador registra manualmente los cargos pactados y sus cobros. El alta del instituto no genera cargos automáticamente.",
           "Estos cargos están separados de las cuotas y pagos de los alumnos.",
         ],
         link: b + "/subscription",
@@ -152,8 +152,8 @@ export function platformHelp(res: Response) {
         steps: [
           "Los responsables de institutos pueden solicitar el servicio desde Solicitar acceso en la página pública.",
           "Al iniciar sesión como superadministrador entrás al Panel de plataforma. Allí se muestran las solicitudes pendientes con el botón Revisar solicitud. También podés abrir Ver todas las solicitudes para consultar el historial.",
-          "Crear instituto y aprobar abre un formulario con los datos recibidos. Definí el identificador, abono y vencimiento antes de guardar.",
-          "Al guardar se crea el instituto, la solicitud queda aprobada y se envía la invitación al primer administrador. El responsable recibe también el importe y vencimiento.",
+          "Crear instituto y aprobar abre un formulario con los datos recibidos. Completá el identificador público, el contacto y el correo del primer administrador.",
+          "Al guardar se crea el instituto, la solicitud queda aprobada y se envía la invitación al primer administrador. El alta no genera cargos ni define una tarifa.",
           "Rechazar solicitud exige un motivo y envía la respuesta por correo. Una solicitud resuelta no puede aprobarse ni rechazarse otra vez.",
         ],
         link: "/platform/requests",
@@ -161,7 +161,7 @@ export function platformHelp(res: Response) {
       {
         title: "Crear un instituto",
         steps: [
-          "En Plataforma elegí Crear instituto. Completá nombre, identificador público, contacto, abono mensual y vencimiento.",
+          "En Plataforma elegí Crear instituto. Completá nombre, identificador público y datos de contacto.",
           "Indicá el correo del primer administrador. Recibirá una invitación que vence a los siete días.",
           "El administrador acepta la invitación creando una cuenta o usando su contraseña existente. Desde entonces administra únicamente su instituto.",
           "Si la invitación vence, abrí el instituto y elegí Invitar administrador para enviar un nuevo enlace.",
@@ -169,21 +169,21 @@ export function platformHelp(res: Response) {
         link: "/platform/new",
       },
       {
-        title: "Consultar y cobrar abonos",
+        title: "Registrar cargos y cobros a institutos",
         steps: [
           "Abrí un instituto desde el panel para consultar sus cargos, importes, vencimientos y estados.",
-          "El abono mensual se genera automáticamente para institutos activos con precio mayor que cero. El cargo conserva el precio que tenía al generarse.",
-          "Agregar cargo permite registrar conceptos adicionales. Registrar cobro guarda fecha y medio por el importe completo.",
-          "Los administradores del instituto pueden consultar el abono y sus cargos en Abono. Estos cobros están separados de los pagos de alumnos.",
+          "No se generan cargos automáticamente. El modelo comercial está pendiente: no se asume un precio fijo ni un precio por alumno.",
+          "Agregar cargo permite registrar un concepto pactado con el instituto, su importe y vencimiento. Registrar cobro guarda fecha y medio por el importe completo.",
+          "Los administradores del instituto pueden consultar los cargos en Cobros de AulaNexo. Estos cobros están separados de las cuotas de alumnos.",
         ],
         link: "/platform",
       },
       {
         title: "Actualizar o deshabilitar institutos",
         steps: [
-          "Desde el instituto elegí Editar para cambiar el contacto, precio mensual o vencimiento.",
-          "Los cambios de precio afectan cargos futuros; los existentes conservan su importe.",
-          "Deshabilitar requiere confirmación, conserva toda la información e impide el acceso a sus usuarios. También detiene la generación de nuevos abonos.",
+          "Desde el instituto elegí Editar para cambiar su nombre, identificador público y datos de contacto.",
+          "Los cargos manuales conservan el concepto, importe y vencimiento registrados.",
+          "Deshabilitar requiere confirmación, conserva toda la información e impide el acceso a sus usuarios.",
           "Para restablecer el servicio elegí Reactivar.",
         ],
         link: "/platform",

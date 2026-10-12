@@ -8,7 +8,6 @@ import {
   email,
   id,
   cents,
-  integer,
   date,
   InputError,
   money,
@@ -35,18 +34,10 @@ platform.get("/", async (_req, res) => {
   page(
     res,
     "Panel de plataforma",
-    [
-      "Instituto",
-      "Contacto",
-      "Abono mensual",
-      "Saldo pendiente",
-      "Estado",
-      "Acciones",
-    ],
+    ["Instituto", "Contacto", "Saldo pendiente", "Estado", "Acciones"],
     data.map((i) => [
       i.name,
       i.contact_email,
-      money(i.monthly_cents),
       money(i.balance),
       i.active ? "Activo" : "Deshabilitado",
       [{ label: "Administrar", href: `/platform/${i.id}` }],
@@ -86,27 +77,6 @@ const fields = (v: any = {}) => [
     value: v.contact_email,
   },
   { name: "phone", label: "Teléfono", value: v.phone },
-  {
-    name: "monthly",
-    label: "Abono mensual (ARS)",
-    type: "number",
-    step: "0.01",
-    min: "0",
-    required: true,
-    value:
-      v.monthly_cents !== undefined
-        ? String(Number(v.monthly_cents) / 100)
-        : "0",
-  },
-  {
-    name: "due_day",
-    label: "Día de vencimiento",
-    type: "number",
-    min: "1",
-    max: "28",
-    required: true,
-    value: v.due_day ?? 10,
-  },
 ];
 platform.get("/new", async (req, res) => {
   const requestId = req.query.request ? id(req.query.request) : null;
@@ -150,7 +120,7 @@ platform.get("/new", async (req, res) => {
     ],
     {
       description: request
-        ? "Al guardar se aprueba la solicitud, se crea el instituto y se envía la invitación. Definí el importe mensual del abono y su vencimiento."
+        ? "Al guardar se aprueba la solicitud, se crea el instituto y se envía la invitación. La configuración de cobros se administra por separado."
         : "El primer administrador recibirá una invitación por correo.",
       hiddenValues: requestId ? { _request_id: requestId } : {},
       backHref: requestId ? `/platform/requests/${requestId}` : "/platform",
@@ -166,8 +136,6 @@ platform.post("/new", csrf, async (req, res) => {
     adminEmail = email(req.body.admin_email),
     value = token();
   const requestId = req.body._request_id ? id(req.body._request_id) : null;
-  const monthly = cents(req.body.monthly),
-    due = integer(req.body.due_day, "Vencimiento", 1, 28);
   let instituteId = 0;
   await transaction(async (db) => {
     const request = requestId
@@ -185,20 +153,20 @@ platform.post("/new", csrf, async (req, res) => {
       );
     instituteId = (
       await write(
-        "INSERT INTO institutes(name,slug,contact_email,phone,monthly_cents,due_day,settings) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO institutes(name,slug,contact_email,phone,settings) VALUES (?,?,?,?,?)",
         [
           name,
           slug,
           contact,
           text(req.body.phone, "Teléfono", 40, false),
-          monthly,
-          due,
           JSON.stringify({
-            dueDay: 10,
+            dueDay: null,
             enrollmentEnabled: true,
             discountPercent: 0,
             paymentMethods: ["Efectivo", "Transferencia"],
-            automaticReminders: true,
+            automaticReminders: false,
+            reminderIntervalDays: null,
+            reminderDelayDays: null,
           }),
         ],
         db,
@@ -212,7 +180,7 @@ platform.post("/new", csrf, async (req, res) => {
     await queueMail(
       adminEmail,
       `Invitación a ${name}`,
-      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.\nAbono mensual: ${money(monthly)}. Vencimiento: día ${due}.`,
+      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.`,
       db,
     );
     if (request) {
@@ -224,7 +192,7 @@ platform.post("/new", csrf, async (req, res) => {
       await queueMail(
         request.email,
         "Tu solicitud de AulaNexo fue aprobada",
-        `Hola ${request.contact_name}. Aprobamos tu solicitud para ${name}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}. Enviamos la invitación al primer administrador: ${adminEmail}.`,
+        `Hola ${request.contact_name}. Aprobamos tu solicitud para ${name}. Enviamos la invitación al primer administrador: ${adminEmail}.`,
         db,
       );
       await audit(
@@ -262,10 +230,9 @@ platform.get("/:id", async (req, res) => {
   page(
     res,
     institute.name,
-    ["Concepto", "Período", "Importe", "Vencimiento", "Estado", "Acción"],
+    ["Concepto", "Importe", "Vencimiento", "Estado", "Acción"],
     charges.map((c) => [
       c.description,
-      c.period ?? "—",
       money(c.cents),
       c.due_date,
       c.status === "paid" ? "Pagado" : "Pendiente",
@@ -279,7 +246,7 @@ platform.get("/:id", async (req, res) => {
         : [],
     ]),
     {
-      description: `Abono mensual ${money(institute.monthly_cents)} · Vence el día ${institute.due_day}. Registro: ${publicUrl()}/register/${institute.slug}`,
+      description: `Cargos y cobros registrados manualmente. El modelo comercial de AulaNexo está pendiente de definición. Registro: ${publicUrl()}/register/${institute.slug}`,
       actions: [
         { label: "Editar instituto", href: `/platform/${institute.id}/edit` },
         {
@@ -314,14 +281,12 @@ platform.post("/:id/edit", csrf, async (req, res) => {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
     throw new InputError("Identificador inválido.");
   await write(
-    "UPDATE institutes SET name=?,slug=?,contact_email=?,phone=?,monthly_cents=?,due_day=? WHERE id=?",
+    "UPDATE institutes SET name=?,slug=?,contact_email=?,phone=? WHERE id=?",
     [
       text(req.body.name, "Nombre"),
       slug,
       email(req.body.contact_email),
       text(req.body.phone, "Teléfono", 40, false),
-      cents(req.body.monthly),
-      integer(req.body.due_day, "Vencimiento", 1, 28),
       id(req.params.id),
     ],
   );
@@ -406,7 +371,7 @@ platform.post("/:id/charges/new", csrf, async (req, res) => {
 platform.get("/:id/charges/:charge/pay", (_req, res) =>
   form(
     res,
-    "Registrar cobro del abono",
+    "Registrar cobro al instituto",
     [
       {
         name: "paid_date",
