@@ -4,6 +4,7 @@ src/public/app.css
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.pdf
 coverage/
 

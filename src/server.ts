@@ -12,6 +12,11 @@ const env = z
     APP_URL: z.string().url(),
   })
   .parse(process.env);
+if (
+  process.env.NODE_ENV === "production" &&
+  new URL(env.APP_URL).protocol !== "https:"
+)
+  throw new Error("APP_URL debe usar HTTPS en producción.");
 await migrate();
 const app = createApp(async () => {
   await pool.query("SELECT 1");

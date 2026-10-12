@@ -14,7 +14,9 @@
     "test": "tsx --test tests/*.test.ts",
     "check": "tsc --noEmit",
     "bootstrap": "tsx scripts/bootstrap.ts",
-    "test:integration": "RUN_INTEGRATION=1 tsx --test tests/integration.test.ts"
+    "test:integration": "RUN_INTEGRATION=1 tsx --test tests/integration.test.ts",
+    "bootstrap:production": "node dist/bootstrap.js",
+    "smtp:check": "node dist/check-smtp.js"
   },
   "dependencies": {
     "ejs": "^3.1.10",

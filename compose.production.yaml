@@ -1,0 +1,119 @@
+name: aulanexo-production
+x-database-environment: &database-environment
+  DB_HOST: db
+  DB_PORT: 3306
+  DB_NAME: ${MYSQL_DATABASE:-aulanexo}
+  DB_USER: ${MYSQL_USER:-aulanexo}
+  DB_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en el archivo de entorno}
+x-mail-environment: &mail-environment
+  MAILER_DSN: ${MAILER_DSN:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:?Define MAIL_FROM con el remitente real}
+services:
+  app:
+    image: aulanexo:production
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: [*database-environment, *mail-environment]
+      NODE_ENV: production
+      PORT: 3000
+      TZ: America/Argentina/Buenos_Aires
+      APP_URL: ${APP_URL:?Define APP_URL con el subdominio HTTPS}
+      TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:${PUERTO_APP:-8092}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      TZ: America/Argentina/Buenos_Aires
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aulanexo}
+      MYSQL_USER: ${MYSQL_USER:-aulanexo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en el archivo de entorno}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en el archivo de entorno}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT 1' >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  backup:
+    image: mysql:8.4
+    restart: unless-stopped
+    entrypoint: ["sh", "/scripts/backup.sh"]
+    environment:
+      <<: *database-environment
+    volumes:
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+      - backups:/backups
+    depends_on:
+      app:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  bootstrap:
+    image: aulanexo:production
+    profiles: [tools]
+    command: ["npm", "run", "bootstrap:production"]
+    environment:
+      <<: *database-environment
+      NODE_ENV: production
+      OWNER_EMAIL: ${OWNER_EMAIL:-}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-}
+      OWNER_NAME: ${OWNER_NAME:-Administrador de AulaNexo}
+    depends_on:
+      db:
+        condition: service_healthy
+  smtp-check:
+    image: aulanexo:production
+    profiles: [tools]
+    command: ["npm", "run", "smtp:check"]
+    environment:
+      <<: *mail-environment
+      NODE_ENV: production
+volumes:
+  mysql_data:
+  backups:

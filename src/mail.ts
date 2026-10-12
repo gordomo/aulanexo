@@ -1,15 +1,7 @@
+import { smtpOptions } from "./smtp-config.js";
 import nodemailer from "nodemailer";
 import { rows, write, type DB, pool } from "./db/index.js";
-const transport = nodemailer.createTransport({
-  host: process.env.SMTP_HOST ?? "mailpit",
-  port: Number(process.env.SMTP_PORT ?? 1025),
-  secure: process.env.SMTP_SECURE === "true",
-  ...(process.env.SMTP_USER
-    ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } }
-    : {}),
-  disableFileAccess: true,
-  disableUrlAccess: true,
-});
+const transport = nodemailer.createTransport(smtpOptions());
 export async function queueMail(
   to: string,
   subject: string,
