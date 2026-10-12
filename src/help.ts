@@ -91,7 +91,7 @@ export function help(res: Response) {
       {
         title: "Consultar el abono de AulaNexo",
         steps: [
-          "Abrí “Abono” para ver el plan, importe mensual, día de vencimiento y cargos del instituto.",
+          "Abrí “Abono” para ver el importe mensual, día de vencimiento y cargos del instituto.",
           "Los pagos del abono son registrados por el superadministrador de la plataforma.",
           "Estos cargos están separados de las cuotas y pagos de los alumnos.",
         ],
@@ -152,8 +152,8 @@ export function platformHelp(res: Response) {
         steps: [
           "Los responsables de institutos pueden solicitar el servicio desde Solicitar acceso en la página pública.",
           "Al iniciar sesión como superadministrador entrás al Panel de plataforma. Allí se muestran las solicitudes pendientes con el botón Revisar solicitud. También podés abrir Ver todas las solicitudes para consultar el historial.",
-          "Crear instituto y aprobar abre un formulario con los datos recibidos. Definí el identificador, plan, abono y vencimiento antes de guardar.",
-          "Al guardar se crea el instituto, la solicitud queda aprobada y se envía la invitación al primer administrador. El responsable recibe también el plan, importe y vencimiento.",
+          "Crear instituto y aprobar abre un formulario con los datos recibidos. Definí el identificador, abono y vencimiento antes de guardar.",
+          "Al guardar se crea el instituto, la solicitud queda aprobada y se envía la invitación al primer administrador. El responsable recibe también el importe y vencimiento.",
           "Rechazar solicitud exige un motivo y envía la respuesta por correo. Una solicitud resuelta no puede aprobarse ni rechazarse otra vez.",
         ],
         link: "/platform/requests",
@@ -161,7 +161,7 @@ export function platformHelp(res: Response) {
       {
         title: "Crear un instituto",
         steps: [
-          "En Plataforma elegí Crear instituto. Completá nombre, identificador público, contacto, plan, abono mensual y vencimiento.",
+          "En Plataforma elegí Crear instituto. Completá nombre, identificador público, contacto, abono mensual y vencimiento.",
           "Indicá el correo del primer administrador. Recibirá una invitación que vence a los siete días.",
           "El administrador acepta la invitación creando una cuenta o usando su contraseña existente. Desde entonces administra únicamente su instituto.",
           "Si la invitación vence, abrí el instituto y elegí Invitar administrador para enviar un nuevo enlace.",
@@ -174,14 +174,14 @@ export function platformHelp(res: Response) {
           "Abrí un instituto desde el panel para consultar sus cargos, importes, vencimientos y estados.",
           "El abono mensual se genera automáticamente para institutos activos con precio mayor que cero. El cargo conserva el precio que tenía al generarse.",
           "Agregar cargo permite registrar conceptos adicionales. Registrar cobro guarda fecha y medio por el importe completo.",
-          "Los administradores del instituto pueden consultar el plan y sus cargos en Abono. Estos cobros están separados de los pagos de alumnos.",
+          "Los administradores del instituto pueden consultar el abono y sus cargos en Abono. Estos cobros están separados de los pagos de alumnos.",
         ],
         link: "/platform",
       },
       {
         title: "Actualizar o deshabilitar institutos",
         steps: [
-          "Desde el instituto elegí Editar para cambiar el contacto, plan, precio mensual o vencimiento.",
+          "Desde el instituto elegí Editar para cambiar el contacto, precio mensual o vencimiento.",
           "Los cambios de precio afectan cargos futuros; los existentes conservan su importe.",
           "Deshabilitar requiere confirmación, conserva toda la información e impide el acceso a sus usuarios. También detiene la generación de nuevos abonos.",
           "Para restablecer el servicio elegí Reactivar.",

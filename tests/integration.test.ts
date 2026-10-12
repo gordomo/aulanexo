@@ -549,11 +549,12 @@ test(
           contact_email: "contact@test.local",
           admin_email: `owner-${suffix}@test.local`,
           phone: "",
-          plan: "Demo",
           monthly: "100.00",
           due_day: "10",
         });
         assert.equal(response.status, 302);
+        const blankForm = await oo.get("/platform/new");
+        assert.doesNotMatch(blankForm.text, /name="plan"/);
         const created = (
           await rows("SELECT id FROM institutes WHERE slug=?", [
             `invited-${suffix}`,
@@ -565,6 +566,26 @@ test(
             [`owner-${suffix}@test.local`],
           )
         )[0].body;
+        assert.doesNotMatch(message, /Plan:/);
+        const editForm = await oo.get(`/platform/${created.id}/edit`);
+        assert.doesNotMatch(editForm.text, /name="plan"/);
+        assert.equal(
+          (
+            await post(oo, `/platform/${created.id}/edit`, {
+              name: "Invited Institute",
+              slug: `invited-${suffix}`,
+              contact_email: "contact@test.local",
+              phone: "",
+              monthly: "125.50",
+              due_day: "15",
+            })
+          ).status,
+          302,
+        );
+        const subscription = await oo.get(`/i/${created.id}/subscription`);
+        // Access is granted only after the invitation is accepted below.
+        assert.equal(subscription.status, 403);
+
         const invite = /\/invite\/([a-f0-9]{64})/.exec(message)![1];
         assert.equal((await oo.get(`/invite/${invite}`)).status, 200);
         assert.equal(
@@ -573,6 +594,11 @@ test(
           302,
         );
         assert.equal((await oo.get(`/i/${created.id}`)).status, 200);
+        const abono = await oo.get(`/i/${created.id}/subscription`);
+        assert.equal(abono.status, 200);
+        assert.match(abono.text, /125,50/);
+        assert.doesNotMatch(abono.text, /Plan Estándar/);
+
         assert.equal(
           (await post(oo, `/invite/${invite}`, { name: "Owner", password }))
             .status,
@@ -950,6 +976,7 @@ test(
         );
         const form = await oo.get(`/platform/new?request=${entry.id}`);
         assert.equal(form.status, 200);
+        assert.doesNotMatch(form.text, /name="plan"/);
         assert.ok(form.text.includes(data.email));
         assert.ok(form.text.includes(`name="_request_id" value="${entry.id}"`));
         assert.equal(
@@ -961,7 +988,6 @@ test(
               contact_email: data.email,
               admin_email: data.email,
               phone: data.phone,
-              plan: "Estándar",
               monthly: "1234.56",
               due_day: "12",
             })
@@ -1000,7 +1026,6 @@ test(
               contact_email: data.email,
               admin_email: data.email,
               phone: data.phone,
-              plan: "Estándar",
               monthly: "1234.56",
               due_day: "12",
             })

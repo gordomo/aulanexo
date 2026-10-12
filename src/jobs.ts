@@ -42,7 +42,7 @@ export async function generateCharges() {
         "INSERT IGNORE INTO platform_charges(institute_id,description,period,cents,due_date) VALUES (?,?,?,?,?)",
         [
           i.id,
-          `Abono ${i.plan} · ${period}`,
+          `Abono de AulaNexo · ${period}`,
           period,
           i.monthly_cents,
           dueDate(period, i.due_day),

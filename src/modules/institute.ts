@@ -1083,7 +1083,7 @@ institute.post("/settings", admin, csrf, async (req, res) => {
 });
 institute.get("/subscription", admin, async (_req, res) => {
   const i = (
-    await rows("SELECT plan,monthly_cents,due_day FROM institutes WHERE id=?", [
+    await rows("SELECT monthly_cents,due_day FROM institutes WHERE id=?", [
       res.locals.tenantId,
     ])
   )[0];
@@ -1103,7 +1103,7 @@ institute.get("/subscription", admin, async (_req, res) => {
       c.paid_date ?? "—",
     ]),
     {
-      description: `Plan ${i.plan}: ${money(i.monthly_cents)} por mes. Vencimiento: día ${i.due_day}. Los cobros son registrados por el administrador de la plataforma.`,
+      description: `Abono mensual: ${money(i.monthly_cents)}. Vencimiento: día ${i.due_day}. Los cobros son registrados por el administrador de la plataforma.`,
     },
   );
 });

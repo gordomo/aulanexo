@@ -38,7 +38,6 @@ platform.get("/", async (_req, res) => {
     [
       "Instituto",
       "Contacto",
-      "Plan",
       "Abono mensual",
       "Saldo pendiente",
       "Estado",
@@ -47,7 +46,6 @@ platform.get("/", async (_req, res) => {
     data.map((i) => [
       i.name,
       i.contact_email,
-      i.plan,
       money(i.monthly_cents),
       money(i.balance),
       i.active ? "Activo" : "Deshabilitado",
@@ -88,7 +86,6 @@ const fields = (v: any = {}) => [
     value: v.contact_email,
   },
   { name: "phone", label: "Teléfono", value: v.phone },
-  { name: "plan", label: "Plan", required: true, value: v.plan ?? "Estándar" },
   {
     name: "monthly",
     label: "Abono mensual (ARS)",
@@ -153,7 +150,7 @@ platform.get("/new", async (req, res) => {
     ],
     {
       description: request
-        ? "Al guardar se aprueba la solicitud, se crea el instituto y se envía la invitación. Definí el plan, el importe mensual y su vencimiento."
+        ? "Al guardar se aprueba la solicitud, se crea el instituto y se envía la invitación. Definí el importe mensual del abono y su vencimiento."
         : "El primer administrador recibirá una invitación por correo.",
       hiddenValues: requestId ? { _request_id: requestId } : {},
       backHref: requestId ? `/platform/requests/${requestId}` : "/platform",
@@ -169,8 +166,7 @@ platform.post("/new", csrf, async (req, res) => {
     adminEmail = email(req.body.admin_email),
     value = token();
   const requestId = req.body._request_id ? id(req.body._request_id) : null;
-  const plan = text(req.body.plan, "Plan", 100),
-    monthly = cents(req.body.monthly),
+  const monthly = cents(req.body.monthly),
     due = integer(req.body.due_day, "Vencimiento", 1, 28);
   let instituteId = 0;
   await transaction(async (db) => {
@@ -189,13 +185,12 @@ platform.post("/new", csrf, async (req, res) => {
       );
     instituteId = (
       await write(
-        "INSERT INTO institutes(name,slug,contact_email,phone,plan,monthly_cents,due_day,settings) VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO institutes(name,slug,contact_email,phone,monthly_cents,due_day,settings) VALUES (?,?,?,?,?,?,?)",
         [
           name,
           slug,
           contact,
           text(req.body.phone, "Teléfono", 40, false),
-          plan,
           monthly,
           due,
           JSON.stringify({
@@ -217,7 +212,7 @@ platform.post("/new", csrf, async (req, res) => {
     await queueMail(
       adminEmail,
       `Invitación a ${name}`,
-      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.\nPlan: ${plan}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}.`,
+      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.\nAbono mensual: ${money(monthly)}. Vencimiento: día ${due}.`,
       db,
     );
     if (request) {
@@ -229,7 +224,7 @@ platform.post("/new", csrf, async (req, res) => {
       await queueMail(
         request.email,
         "Tu solicitud de AulaNexo fue aprobada",
-        `Hola ${request.contact_name}. Aprobamos tu solicitud para ${name}. Plan: ${plan}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}. Enviamos la invitación al primer administrador: ${adminEmail}.`,
+        `Hola ${request.contact_name}. Aprobamos tu solicitud para ${name}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}. Enviamos la invitación al primer administrador: ${adminEmail}.`,
         db,
       );
       await audit(
@@ -284,7 +279,7 @@ platform.get("/:id", async (req, res) => {
         : [],
     ]),
     {
-      description: `Plan ${institute.plan} · Abono mensual ${money(institute.monthly_cents)} · Vence el día ${institute.due_day}. Registro: ${publicUrl()}/register/${institute.slug}`,
+      description: `Abono mensual ${money(institute.monthly_cents)} · Vence el día ${institute.due_day}. Registro: ${publicUrl()}/register/${institute.slug}`,
       actions: [
         { label: "Editar instituto", href: `/platform/${institute.id}/edit` },
         {
@@ -319,13 +314,12 @@ platform.post("/:id/edit", csrf, async (req, res) => {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
     throw new InputError("Identificador inválido.");
   await write(
-    "UPDATE institutes SET name=?,slug=?,contact_email=?,phone=?,plan=?,monthly_cents=?,due_day=? WHERE id=?",
+    "UPDATE institutes SET name=?,slug=?,contact_email=?,phone=?,monthly_cents=?,due_day=? WHERE id=?",
     [
       text(req.body.name, "Nombre"),
       slug,
       email(req.body.contact_email),
       text(req.body.phone, "Teléfono", 40, false),
-      text(req.body.plan, "Plan", 100),
       cents(req.body.monthly),
       integer(req.body.due_day, "Vencimiento", 1, 28),
       id(req.params.id),
