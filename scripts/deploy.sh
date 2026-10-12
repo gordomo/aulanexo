@@ -8,4 +8,4 @@ fi
 git pull --ff-only
 docker compose --env-file .env.production -f compose.production.yaml config --quiet
 docker compose --env-file .env.production -f compose.production.yaml build app
-docker compose --env-file .env.production -f compose.production.yaml up -d --wait --wait-timeout 180 app db backup
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait app db backup
