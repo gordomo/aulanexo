@@ -107,3 +107,23 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 CREATE TABLE IF NOT EXISTS job_markers (dedupe_key VARCHAR(160) PRIMARY KEY, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);
+
+CREATE TABLE IF NOT EXISTS institute_requests (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ institute_name VARCHAR(160) NOT NULL,
+ contact_name VARCHAR(160) NOT NULL,
+ email VARCHAR(254) NOT NULL,
+ phone VARCHAR(40) NULL,
+ message TEXT NULL,
+ status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+ request_key CHAR(64) NOT NULL,
+ pending_key CHAR(64) GENERATED ALWAYS AS (CASE WHEN status='pending' THEN request_key ELSE NULL END) STORED,
+ institute_id BIGINT UNSIGNED NULL,
+ reviewed_by BIGINT UNSIGNED NULL,
+ review_reason TEXT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ reviewed_at DATETIME NULL,
+ UNIQUE(pending_key), INDEX(status,created_at),
+ FOREIGN KEY(institute_id) REFERENCES institutes(id),
+ FOREIGN KEY(reviewed_by) REFERENCES users(id)
+);

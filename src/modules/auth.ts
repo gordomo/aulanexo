@@ -17,7 +17,9 @@ const attempts = new Map<string, { count: number; until: number }>();
 auth.use((req, res, next) => {
   if (
     req.method !== "POST" ||
-    !/^\/(login|forgot|register|invite|reset)(\/|$)/.test(req.path)
+    !/^\/(login|forgot|register|invite|reset|request-institute)(\/|$)/.test(
+      req.path,
+    )
   )
     return next();
   const key = req.ip ?? "unknown";
@@ -30,13 +32,11 @@ auth.use((req, res, next) => {
   if (attempts.size > 10000)
     for (const [k, v] of attempts) if (v.until < now) attempts.delete(k);
   if (++state.count > 30) {
-    res
-      .status(429)
-      .render("error", {
-        title: "Esperá unos minutos",
-        message:
-          "Se alcanzó el límite de intentos. Volvé a intentar en 15 minutos.",
-      });
+    res.status(429).render("error", {
+      title: "Esperá unos minutos",
+      message:
+        "Se alcanzó el límite de intentos. Volvé a intentar en 15 minutos.",
+    });
     return;
   }
   next();

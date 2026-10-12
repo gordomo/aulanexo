@@ -861,6 +861,216 @@ test(
       },
     );
     await t.test(
+      "public institute requests require valid data and CSRF without creating enabled accounts",
+      async () => {
+        const anonymous = request.agent(server);
+        const initial = await anonymous.get("/request-institute");
+        assert.equal(initial.status, 200);
+        const csrf = /name="_csrf" value="([a-f0-9]+)"/.exec(initial.text)![1];
+        const data = {
+          institute_name: `Requested ${suffix}`,
+          contact_name: "Responsible Person",
+          email: `request-${suffix}@test.local`,
+          phone: "123456",
+          message: "We need access",
+        };
+        const userCount = (await rows("SELECT COUNT(*) AS total FROM users"))[0]
+          .total;
+        const instituteCount = (
+          await rows("SELECT COUNT(*) AS total FROM institutes")
+        )[0].total;
+        assert.equal(
+          (await anonymous.post("/request-institute").type("form").send(data))
+            .status,
+          403,
+        );
+        assert.equal(
+          (
+            await anonymous
+              .post("/request-institute")
+              .type("form")
+              .send({ ...data, email: "invalid", _csrf: csrf })
+          ).status,
+          400,
+        );
+        const sent = await anonymous
+          .post("/request-institute")
+          .type("form")
+          .send({ ...data, _csrf: csrf });
+        assert.equal(sent.status, 200);
+        assert.match(sent.text, /Solicitud enviada/);
+        assert.equal(
+          (await rows("SELECT COUNT(*) AS total FROM users"))[0].total,
+          userCount,
+        );
+        assert.equal(
+          (await rows("SELECT COUNT(*) AS total FROM institutes"))[0].total,
+          instituteCount,
+        );
+        assert.equal(
+          (
+            await anonymous
+              .post("/request-institute")
+              .type("form")
+              .send({ ...data, _csrf: csrf })
+          ).status,
+          400,
+        );
+        const entry = (
+          await rows("SELECT * FROM institute_requests WHERE email=?", [
+            data.email,
+          ])
+        )[0];
+        assert.equal(entry.status, "pending");
+        assert.equal((await aa.get("/platform/requests")).status, 403);
+        assert.equal((await anonymous.get("/platform/requests")).status, 302);
+        assert.equal(
+          (await oo.get(`/platform/requests/${entry.id}`)).status,
+          200,
+        );
+        const form = await oo.get(`/platform/new?request=${entry.id}`);
+        assert.equal(form.status, 200);
+        assert.ok(form.text.includes(data.email));
+        assert.ok(form.text.includes(`name="_request_id" value="${entry.id}"`));
+        assert.equal(
+          (
+            await post(oo, "/platform/new", {
+              _request_id: entry.id,
+              name: data.institute_name,
+              slug: `requested-${suffix}`,
+              contact_email: data.email,
+              admin_email: data.email,
+              phone: data.phone,
+              plan: "Estándar",
+              monthly: "1234.56",
+              due_day: "12",
+            })
+          ).status,
+          302,
+        );
+        const approved = (
+          await rows("SELECT * FROM institute_requests WHERE id=?", [entry.id])
+        )[0];
+        assert.equal(approved.status, "approved");
+        assert.equal(approved.reviewed_by, owner);
+        assert.ok(approved.institute_id);
+        assert.equal(
+          (
+            await rows(
+              "SELECT COUNT(*) AS total FROM memberships WHERE institute_id=?",
+              [approved.institute_id],
+            )
+          )[0].total,
+          0,
+        );
+        const message = (
+          await rows(
+            "SELECT body FROM outbox WHERE recipient=? AND subject LIKE 'Invitación%' ORDER BY id DESC LIMIT 1",
+            [data.email],
+          )
+        )[0].body;
+        assert.match(message, /invite\/[a-f0-9]{64}/);
+        assert.match(message, /1.234,56/);
+        assert.equal(
+          (
+            await post(oo, "/platform/new", {
+              _request_id: entry.id,
+              name: data.institute_name,
+              slug: `duplicate-requested-${suffix}`,
+              contact_email: data.email,
+              admin_email: data.email,
+              phone: data.phone,
+              plan: "Estándar",
+              monthly: "1234.56",
+              due_day: "12",
+            })
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await post(oo, `/platform/requests/${entry.id}/reject`, {
+              reason: "No",
+            })
+          ).status,
+          400,
+        );
+      },
+    );
+    await t.test(
+      "rejection requires a reason, emails the responsible and cannot be repeated",
+      async () => {
+        const anonymous = request.agent(server);
+        const form = await anonymous.get("/request-institute");
+        const csrf = /name="_csrf" value="([a-f0-9]+)"/.exec(form.text)![1];
+        const data = {
+          institute_name: `Rejected ${suffix}`,
+          contact_name: "Responsible",
+          email: `rejected-${suffix}@test.local`,
+          _csrf: csrf,
+        };
+        assert.equal(
+          (await anonymous.post("/request-institute").type("form").send(data))
+            .status,
+          200,
+        );
+        const entry = (
+          await rows("SELECT id FROM institute_requests WHERE email=?", [
+            data.email,
+          ])
+        )[0];
+        assert.equal(
+          (
+            await post(aa, `/platform/requests/${entry.id}/reject`, {
+              reason: "Unauthorized",
+            })
+          ).status,
+          403,
+        );
+        assert.equal(
+          (
+            await post(oo, `/platform/requests/${entry.id}/reject`, {
+              reason: " ",
+            })
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await post(oo, `/platform/requests/${entry.id}/reject`, {
+              reason: "Necesitamos más información",
+            })
+          ).status,
+          302,
+        );
+        const rejected = (
+          await rows("SELECT * FROM institute_requests WHERE id=?", [entry.id])
+        )[0];
+        assert.equal(rejected.status, "rejected");
+        assert.equal(rejected.institute_id, null);
+        assert.equal(rejected.review_reason, "Necesitamos más información");
+        const message = (
+          await rows(
+            "SELECT body FROM outbox WHERE recipient=? AND subject='Respuesta a tu solicitud de AulaNexo'",
+            [data.email],
+          )
+        )[0].body;
+        assert.match(message, /Necesitamos más información/);
+        assert.equal(
+          (
+            await post(oo, `/platform/requests/${entry.id}/reject`, {
+              reason: "Again",
+            })
+          ).status,
+          400,
+        );
+        assert.equal(
+          (await oo.get(`/platform/new?request=${entry.id}`)).status,
+          400,
+        );
+      },
+    );
+    await t.test(
       "50 concurrent authenticated dashboard requests remain within the stated latency",
       async () => {
         const start = performance.now();

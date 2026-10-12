@@ -5,6 +5,7 @@ import { session, csrf } from "./security.js";
 import { auth } from "./modules/auth.js";
 import { platform } from "./modules/platform.js";
 import { institute } from "./modules/institute.js";
+import { instituteRequests } from "./modules/institute-requests.js";
 import { attendance } from "./modules/attendance.js";
 import { payments } from "./modules/payments.js";
 import { notifications } from "./modules/notifications.js";
@@ -55,18 +56,17 @@ export function createApp(checkDatabase: () => Promise<void>, features = true) {
   if (features) {
     app.use(session);
     app.use(auth);
+    app.use("/request-institute", instituteRequests);
     app.use("/platform", platform);
     app.use("/i/:tenant", institute);
     app.use(csrf);
   }
   app.get("/", (_req, res) => res.render("home"));
   app.use((_req, res) =>
-    res
-      .status(404)
-      .render("error", {
-        title: "Página no encontrada",
-        message: "La dirección no existe o el registro no está disponible.",
-      }),
+    res.status(404).render("error", {
+      title: "Página no encontrada",
+      message: "La dirección no existe o el registro no está disponible.",
+    }),
   );
   app.use(
     (

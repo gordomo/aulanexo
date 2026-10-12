@@ -1,3 +1,4 @@
+import { requestReview } from "./institute-requests.js";
 import { platformHelp } from "../help.js";
 import { Router } from "express";
 import { authenticated, superAdmin, csrf, token, digest } from "../security.js";
@@ -17,6 +18,7 @@ import { form, page } from "../ui.js";
 import { queueMail, publicUrl } from "../mail.js";
 export const platform = Router();
 platform.use(authenticated, superAdmin);
+platform.use("/requests", requestReview);
 platform.get("/help", (_req, res) => platformHelp(res));
 platform.get("/", async (_req, res) => {
   const data = await rows(
@@ -43,7 +45,12 @@ platform.get("/", async (_req, res) => {
       i.active ? "Activo" : "Deshabilitado",
       [{ label: "Administrar", href: `/platform/${i.id}` }],
     ]),
-    { actions: [{ label: "Crear instituto", href: "/platform/new" }] },
+    {
+      actions: [
+        { label: "Crear instituto", href: "/platform/new" },
+        { label: "Solicitudes de acceso", href: "/platform/requests" },
+      ],
+    },
   );
 });
 const fields = (v: any = {}) => [
@@ -91,25 +98,55 @@ const fields = (v: any = {}) => [
     value: v.due_day ?? 10,
   },
 ];
-platform.get("/new", (_req, res) =>
+platform.get("/new", async (req, res) => {
+  const requestId = req.query.request ? id(req.query.request) : null;
+  const request = requestId
+    ? (
+        await rows(
+          "SELECT * FROM institute_requests WHERE id=? AND status='pending'",
+          [requestId],
+        )
+      )[0]
+    : null;
+  if (requestId && !request)
+    throw new InputError("La solicitud ya fue resuelta o no está disponible.");
+  const preset = request
+    ? {
+        name: request.institute_name,
+        contact_email: request.email,
+        phone: request.phone,
+        slug: request.institute_name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 80)
+          .replace(/-$/, ""),
+      }
+    : {};
   form(
     res,
-    "Crear instituto",
+    request ? "Crear instituto y aprobar solicitud" : "Crear instituto",
     [
-      ...fields(),
+      ...fields(preset),
       {
         name: "admin_email",
         label: "Correo del primer administrador",
         type: "email",
         required: true,
+        value: request?.email,
       },
     ],
     {
-      description:
-        "El primer administrador recibirá una invitación por correo.",
+      description: request
+        ? "Al guardar se aprueba la solicitud, se crea el instituto y se envía la invitación. Definí el plan, el importe mensual y su vencimiento."
+        : "El primer administrador recibirá una invitación por correo.",
+      hiddenValues: requestId ? { _request_id: requestId } : {},
+      backHref: requestId ? `/platform/requests/${requestId}` : "/platform",
     },
-  ),
-);
+  );
+});
 platform.post("/new", csrf, async (req, res) => {
   const name = text(req.body.name, "Nombre"),
     slug = text(req.body.slug, "Identificador", 80);
@@ -118,8 +155,25 @@ platform.post("/new", csrf, async (req, res) => {
   const contact = email(req.body.contact_email),
     adminEmail = email(req.body.admin_email),
     value = token();
+  const requestId = req.body._request_id ? id(req.body._request_id) : null;
+  const plan = text(req.body.plan, "Plan", 100),
+    monthly = cents(req.body.monthly),
+    due = integer(req.body.due_day, "Vencimiento", 1, 28);
   let instituteId = 0;
   await transaction(async (db) => {
+    const request = requestId
+      ? (
+          await rows(
+            "SELECT * FROM institute_requests WHERE id=? AND status='pending' FOR UPDATE",
+            [requestId],
+            db,
+          )
+        )[0]
+      : null;
+    if (requestId && !request)
+      throw new InputError(
+        "La solicitud ya fue resuelta o no está disponible.",
+      );
     instituteId = (
       await write(
         "INSERT INTO institutes(name,slug,contact_email,phone,plan,monthly_cents,due_day,settings) VALUES (?,?,?,?,?,?,?,?)",
@@ -128,9 +182,9 @@ platform.post("/new", csrf, async (req, res) => {
           slug,
           contact,
           text(req.body.phone, "Teléfono", 40, false),
-          text(req.body.plan, "Plan", 100),
-          cents(req.body.monthly),
-          integer(req.body.due_day, "Vencimiento", 1, 28),
+          plan,
+          monthly,
+          due,
           JSON.stringify({
             dueDay: 10,
             enrollmentEnabled: true,
@@ -150,9 +204,30 @@ platform.post("/new", csrf, async (req, res) => {
     await queueMail(
       adminEmail,
       `Invitación a ${name}`,
-      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.`,
+      `Aceptá tu invitación como administrador: ${publicUrl()}/invite/${value}\nVence en 7 días.\nPlan: ${plan}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}.`,
       db,
     );
+    if (request) {
+      await write(
+        "UPDATE institute_requests SET status='approved',institute_id=?,reviewed_by=?,reviewed_at=UTC_TIMESTAMP() WHERE id=?",
+        [instituteId, res.locals.user.id, requestId],
+        db,
+      );
+      await queueMail(
+        request.email,
+        "Tu solicitud de AulaNexo fue aprobada",
+        `Hola ${request.contact_name}. Aprobamos tu solicitud para ${name}. Plan: ${plan}. Abono mensual: ${money(monthly)}. Vencimiento: día ${due}. Enviamos la invitación al primer administrador: ${adminEmail}.`,
+        db,
+      );
+      await audit(
+        null,
+        res.locals.user.id,
+        "institute_request.approve",
+        requestId,
+        null,
+        db,
+      );
+    }
     await audit(
       null,
       res.locals.user.id,
